@@ -449,6 +449,9 @@ IO_DEF bool io_write_file(FILE *stream, size_t nbytes,
     return fwrite(data, 1, nbytes, stream) == nbytes;
 }
 
+#undef ATTRIB_NONNULL
+#undef ATTRIB_WARN_UNUSED_RESULT
+#undef ATTRIB_MALLOC
 #undef TOKEN_IO_CHUNK_SIZE
 #undef GROW_CAPACITY
 #endif                          /* IO_IMPLEMENTATION */
