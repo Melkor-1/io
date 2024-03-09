@@ -97,10 +97,10 @@ IO_DEF char **io_split_lines(char *s, size_t *nlines)
  * Returns a pointer to the chunk on success, or NULL elsewise. The returned
  * chunk is null-terminated.
  *
- * `read_next_chunk()` does not distinguish between end-of-file and error; the
+ * `io_read_next_chunk()` does not distinguish between end-of-file and error; the
  * routines `feof()` and `ferror()` must be used to determine which occured.
  */
-IO_DEF char *read_next_chunk(FILE *stream, char *chunk, size_t *size)
+IO_DEF char *io_read_next_chunk(FILE *stream, char *chunk, size_t *size)
     ATTRIB_NONNULL(1, 2) ATTRIB_WARN_UNUSED_RESULT;
 
 /* 
@@ -266,7 +266,7 @@ IO_DEF char **io_split_lines(char *s, size_t *nlines)
     return io_split_by_delim(s, "\n", nlines);
 }
 
-IO_DEF char *read_next_chunk(FILE *stream, char *chunk, size_t *size)
+IO_DEF char *io_read_next_chunk(FILE *stream, char *chunk, size_t *size)
 {
     if (size) {
         *size = 0;
@@ -508,7 +508,7 @@ int main(int argc, char **argv)
     char *p = chunk;
     size_t chunk_size = 0;
 
-    while ((p = read_next_chunk(fp, chunk, &chunk_size))) {
+    while ((p = io_read_next_chunk(fp, chunk, &chunk_size))) {
         printf("Read a chunk of size: %zu.\n", chunk_size); 
         puts(chunk);
     }
