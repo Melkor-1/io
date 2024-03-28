@@ -1,5 +1,6 @@
-# io
-Missing I/O functions from the C Standard Library
+# Missing I/O functions from the C Standard Library
+
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://https://github.com/Melkor-1/pyva/edit/main/LICENSE)
 
 No need to build, simply add the header to a source file like so:
 
