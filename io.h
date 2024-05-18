@@ -167,8 +167,10 @@ IO_DEF bool io_write_file(FILE *stream, size_t nbytes, const char data[static nb
 #define IO_FREE(p)          free(p)
 #endif
 
-#undef _POSIX_C_SOURCE
-#define _POSIX_C_SOURCE 200809L
+#ifdef _POSIX_C_SOURCE
+    #define HAVE_STAT 1
+    #include <sys/stat.h>
+#endif  /* _POSIX_C_SOURCE */
 
 #include <stdlib.h>
 #include <string.h>
@@ -339,8 +341,7 @@ IO_DEF char *io_read_line(FILE *stream, size_t *size)
     return line;
 }
 
-/* 
- * Reasons to not use `fseek()` and `ftell()` to compute the size of the file:
+/* Reasons to not use `fseek()` and `ftell()` to compute the size of the file:
  * 
  * Subclause 7.12.9.2 of the C Standard [ISO/IEC 9899:2011] specifies the
  * following behavior when opening a binary file in binary mode:
@@ -353,72 +354,127 @@ IO_DEF char *io_read_line(FILE *stream, size_t *size)
  * >> Setting the file position indicator to end-of-file, as with 
  * >> fseek(file, 0, SEEK_END) has undefined behavior for a binary stream.
  *
- * For regular files, the file position indicator returned by ftell() is useful
- * only in calls to fseek. As such, the value returned may not be reflect the 
- * physical byte offset. 
- *
- */
+ * For regular files, the file position indicator returned by `ftell()` is 
+ * useful only in calls to `fseek()`. As such, the value returned may not
+ * reflect the physical byte offset. */
 bool io_fsize(FILE *stream, uintmax_t *size)
 {
-/*
- *   Windows supports fileno(), struct stat, and fstat() as _fileno(),
- *   _fstat(), and struct _stat.
+/*   Windows supports `fileno()`, `struct stat`, and `fstat()` as `_fileno()`,
+ *   `_fstat()`, and `struct _stat`.
  *
- *   See: https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/fstat-fstat32-fstat64-fstati64-fstat32i64-fstat64i32?view=msvc-170
- */
-
+ *   See: https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/fstat-fstat32-fstat64-fstati64-fstat32i64-fstat64i32?view=msvc-170 */
 #ifdef _WIN32
+    #define HAVE_STAT 1
+    
+    /* Windows does not define S_ISREG, S_ISLNK, and S_ISDIR macros in stat.h,
+     * so we do. We have to define _CRT_INTERNAL_NONSTDC_NAMES before including
+     * sys/stat.h in order for Microsoft's stat.h to define names like S_IFMT,
+     * S_IFDIR, and S_IFREG et cetera as it normally does. */
+    #define _CRT_INTERNAL_NONSTDC_NAMES 1
+    #include <sys/stat.h>
+
+    #ifndef S_ISDIR
+        #define S_ISDIR(m)  (((m) & S_IFMT) == S_IFDIR) 
+    #endif  /* S_ISDIR */
+
+    #ifndef S_ISREG
+        #define S_ISREG(m)  (((m) & S_IFMT) == S_IFREG)
+    #endif  /* S_ISREG */
+    
+    #ifdef S_IFLNK
+        #ifndef S_ISLNK
+            #define S_ISLNK(m)  (((m) & S_IFMT) == S_IFLNK)
+        #endif  /* S_ISLINK */
+    #else
+        #define S_ISLNK(m)  (0)
+    #endif  /* S_IFLNK */
+    
     #define fileno _fileno
+
     #ifdef _WIN64
         #define fstat  _fstat64
-        #define stat   __stat64
     #else
         /* Does this suffice for a 32-bit system? */
         #define fstat  _fstat
-        #define stat   _stat
-    #endif                          /* WIN64 */
-#endif                              /* _WIN32 */
+    #endif    /* _WIN64 */
 
-/* According to https://web.archive.org/web/20191012035921/http://nadeausoftware.com/articles/2012/01/c_c_tip_how_use_compiler_predefined_macros_detect_operating_system
- * __unix__ should suffice for IBM AIX, all distributions of BSD, and all
- * distributions of Linux, and Hewlett-Packard HP-UX. __unix suffices for Oracle
- * Solaris. Mac OSX and iOS compilers do not define the conventional __unix__,
- * __unix, or unix macros, so they're checked for separately. WIN32 is defined
- * on 64-bit systems too.
- */
-#if defined(_WIN32) || defined(__unix__) || defined(__unix) || (defined(__APPLE__) && defined(__MACH__))
+    #include <io.h>
+    #include <fcntl.h>
+
+    /* MSDN requires that `stream` be flushed before calling this function,
+     * else the behavior might be unexpected. */
+    fflush(stream);
+
+    if (_setmode(fileno(stream), _O_BINARY) == -1) {
+        return false;
+    }
+#endif    /* _WIN32 */
+
+#ifdef HAVE_STAT
     struct stat st;
 
-    /* rewind() returns no value. */
-    rewind(stream);
-
     if (fstat(fileno(stream), &st) == 0) {
+        if (S_ISDIR(st.st_mode)) {
+            #ifdef EISDIR
+            errno = EISDIR;
+            #endif
+            return false;
+        } else if (!S_ISREG(st.st_mode) || !S_ISLNK(st.st_mode)) {
+            #ifdef EPERM
+            errno = EPERM;
+            #endif
+            return false;
+        }
+
+        if (st.st_size < 0) {
+            return false;
+        }
         *size = (uintmax_t) st.st_size;
         return true;
     }
     return false;
 #else
     /* Fall back to the default and read it in chunks. */
-    uintmax_t rcount = 0;
-    char chunk[IO_CHUNK_SIZE];
+    const bool is_at_end = !feof(stream);
+    size_t orig_pos = 0;
 
-    /* rewind() returns no value. */
+    if (!is_at_end) {
+        /* Save the original file position indicator. We'd restore this before 
+         * returning. */
+        orig_pos = ftell(stream);
+
+        if (orig_pos == -1) {
+            return false;
+        }
+    }
+
     rewind(stream);
 
+    uintmax_t rcount = 0;
+    char chunk[BUFSIZ];  
+
     do {
-        rcount = fread(chunk, 1, IO_CHUNK_SIZE, stream);
+        rcount = fread(chunk, 1, sizeof chunk, stream);
 
         if ((*size + rcount) < *size) {
             /* Overflow. */
+            #ifdef EFBIG
+            errno = EFBIG;
+            #endif
+            
+            if (!is_at_end) {
+                fseek(stream, orig_pos, SEEK_CUR);
+            }
             return false;
         }
         *size += rcount;
-    } while (rcount == IO_CHUNK_SIZE);
-    return !ferror(stream);
-#endif                          /* defined(_WIN32) || defined(__unix__) || defined(__unix) || (defined(__APPLE__) && defined(__MACH__)) */
+    } while (rcount == sizeof chunk);
+
+    return fseek(stream, orig_pos, SEEK_CUR) != -1 && feof(stream);
+#endif      /* HAVE_STAT */ 
 #undef fstat
-#undef stat
 #undef fileno
+#undef HAVE_STAT
 }
 
 IO_DEF bool io_write_lines(FILE *stream, size_t nlines, 
