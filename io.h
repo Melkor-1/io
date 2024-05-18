@@ -5,8 +5,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/* 
- * To use, do this:
+/* To use, do this:
  *   #define IO_IMPLEMENTATION
  * before you include this file in *one* C to create the implementation.
  *
@@ -53,58 +52,50 @@
 
 #define IO_CHUNK_SIZE          (1024 * 64)
 
-/* 
- * Reads the file pointed to by `stream` to a buffer and returns it.
+/* Reads the file pointed to by `stream` to a buffer and returns it.
  * The returned buffer is a nul-terminated string.
  * If `nbytes` is not NULL, it shall hold the size of the file. Otherwise it
  * shall hold 0.
  * 
  * Returns NULL on memory allocation failure. The caller is responsible for
- * freeing the returned pointer.
- */
+ * freeing the returned pointer. */
 IO_DEF char *io_read_file(FILE *stream, size_t *nbytes)
     ATTRIB_NONNULL(1) ATTRIB_WARN_UNUSED_RESULT ATTRIB_MALLOC;
 
-/* 
- * Splits a string into a sequence of tokens. The `delim` argument 
+/* Splits a string into a sequence of tokens. The `delim` argument 
  * specifies a set of bytes that delimit the tokens in the parsed string.
  * If `ntokens` is not NULL, it shall hold the amount of total tokens. Else it
  * shall hold 0.
  *
  * Returns an array of pointers to the tokens, or NULL on memory allocation
- * failure. The caller is responsible for freeing the returned pointer.
- */
-IO_DEF char **io_split_by_delim(char *restrict s, const char *restrict delim,
-    size_t *ntokens) 
+ * failure. The caller is responsible for freeing the returned pointer. */
+IO_DEF char **io_split_by_delim(char s[restrict static 1], 
+                                const char delim[restrict static 1],
+                                size_t *ntokens) 
     ATTRIB_NONNULL(1, 2) ATTRIB_WARN_UNUSED_RESULT ATTRIB_MALLOC;
 
-/* 
- * Splits a string into lines.
+/* Splits a string into lines.
  * A wrapper around `io_split_by_delim()`. It calls the function with "\n" as
  * the delimiter.
  *
  * Returns an array of pointers to the tokens, or NULL on memory allocation
- * failure. The caller is responsible for freeing the returned pointer.
- */
-IO_DEF char **io_split_lines(char *s, size_t *nlines)
+ * failure. The caller is responsible for freeing the returned pointer. */
+IO_DEF char **io_split_lines(char s[restrict static 1], size_t *restrict nlines)
     ATTRIB_NONNULL(1) ATTRIB_WARN_UNUSED_RESULT ATTRIB_MALLOC;
 
-/* 
- * Reads the next chunk of data from the stream referenced to by `stream`.
+/* Reads the next chunk of data from the stream referenced to by `stream`.
  * `chunk` must be a pointer to an array of size IO_CHUNK_SIZE. 
  *
  * Returns the number of bytes read on success, or zero elsewise. The chunk is 
  * not null-terminated.
  *
  * `io_read_next_chunk()` does not distinguish between end-of-file and error; the
- * routines `feof()` and `ferror()` must be used to determine which occured.
- */
+ * routines `feof()` and `ferror()` must be used to determine which occured. */
 IO_DEF size_t io_read_next_chunk(FILE stream[static 1], 
                                  char chunk[static IO_CHUNK_SIZE])
     ATTRIB_NONNULL(1, 2) ATTRIB_WARN_UNUSED_RESULT;
 
-/* 
- * Reads the next line from the stream pointed to by `stream`. The returned line 
+/* Reads the next line from the stream pointed to by `stream`. The returned line 
  * is terminated and does not contain a newline, if one was found.
  *
  * The memory pointed to by `size` shall contain the length of the 
@@ -120,38 +111,35 @@ IO_DEF size_t io_read_next_chunk(FILE stream[static 1],
  *
  * Although a null character is always supplied after the line, note that
  * `strlen(line)` will always be smaller than the value is `size` if the line
- * contains embedded null characters.
- */
-IO_DEF char *io_read_line(FILE *stream, size_t *size)
+ * contains embedded null characters. */
+IO_DEF char *io_read_line(FILE *stream, size_t size[static 1])
     ATTRIB_NONNULL(1, 2) ATTRIB_WARN_UNUSED_RESULT ATTRIB_MALLOC;
 
-/*
- * `size` should be a non-null pointer. On success, the function assigns `size`
+/* `size` should be a non-null pointer. On success, the function assigns `size`
  * with the number of bytes read and returns true, or returns false elsewise.
  * The function also returns false if the size of the file can not be
  * represented.
  *
- * Note: The file can grow between io_fsize() and a subsequent read.
- */
-IO_DEF bool io_fsize(FILE *stream, uintmax_t *size) 
+ * Note: The file can grow between io_fsize() and a subsequent read. */
+IO_DEF bool io_fsize(FILE *stream, uintmax_t size[static 1])
     ATTRIB_NONNULL(1, 2) ATTRIB_WARN_UNUSED_RESULT;
 
-/* 
- * Writes `lines` to the file pointed to by `stream`.
+/* Writes `lines` to the file pointed to by `stream`.
  * A wrapper around 
- * On success, it returns true, or false elsewise.
- */
-IO_DEF bool io_write_lines(FILE *stream, size_t nlines, char *lines[const static nlines]) 
-    ATTRIB_NONNULL(1, 3);
+ *
+ * On success, it returns true, or false elsewise. */
+IO_DEF bool io_write_lines(FILE *stream, size_t nlines, 
+                           char *lines[static nlines]) 
+                           ATTRIB_NONNULL(1, 3);
 
-/* 
- * Writes nbytes from the buffer pointed to by `data` to the file pointed to 
+/* Writes nbytes from the buffer pointed to by `data` to the file pointed to 
  * by `stream`. 
  *
  * On success, it returns true, or false elsewise.
  */
-IO_DEF bool io_write_file(FILE *stream, size_t nbytes, const char data[static nbytes]) 
-    ATTRIB_NONNULL(1, 3);
+IO_DEF bool io_write_file(FILE *stream, size_t nbytes, 
+                          char data[static nbytes]) 
+                          ATTRIB_NONNULL(1, 3);
 
 #endif                          /* IO_H */
 
@@ -226,8 +214,9 @@ IO_DEF char *io_read_file(FILE *stream, size_t *nbytes)
     return content;
 }
 
-IO_DEF char **io_split_by_delim(char *restrict s, const char *restrict delim,
-    size_t *ntokens)
+IO_DEF char **io_split_by_delim(char s[restrict static 1], 
+                                const char delim[restrict static 1],
+                                size_t *ntokens) 
 {
     char **tokens = NULL;
     size_t capacity = 0;
@@ -262,7 +251,8 @@ IO_DEF char **io_split_by_delim(char *restrict s, const char *restrict delim,
     return tokens;
 }
 
-IO_DEF char **io_split_lines(char *s, size_t *nlines)
+IO_DEF char **io_split_lines(char s[restrict static 1], 
+                             size_t *restrict nlines)
 {
     return io_split_by_delim(s, "\n", nlines);
 }
@@ -286,7 +276,7 @@ IO_DEF size_t io_read_next_chunk(FILE stream[static 1],
     return rcount;
 }
 
-IO_DEF char *io_read_line(FILE *stream, size_t *size)
+IO_DEF char *io_read_line(FILE *stream, size_t size[static 1])
 {
     size_t count = 0;
     size_t capacity = 0;
@@ -357,7 +347,7 @@ IO_DEF char *io_read_line(FILE *stream, size_t *size)
  * For regular files, the file position indicator returned by `ftell()` is 
  * useful only in calls to `fseek()`. As such, the value returned may not
  * reflect the physical byte offset. */
-bool io_fsize(FILE *stream, uintmax_t *size)
+IO_DEF bool io_fsize(FILE *stream, uintmax_t size[static 1])
 {
 /*   Windows supports `fileno()`, `struct stat`, and `fstat()` as `_fileno()`,
  *   `_fstat()`, and `struct _stat`.
@@ -436,7 +426,7 @@ bool io_fsize(FILE *stream, uintmax_t *size)
 #else
     /* Fall back to the default and read it in chunks. */
     const bool is_at_end = !feof(stream);
-    size_t orig_pos = 0;
+    long orig_pos = 0;
 
     if (!is_at_end) {
         /* Save the original file position indicator. We'd restore this before 
@@ -478,7 +468,7 @@ bool io_fsize(FILE *stream, uintmax_t *size)
 }
 
 IO_DEF bool io_write_lines(FILE *stream, size_t nlines, 
-        char *lines[const static nlines])
+                           char *lines[static nlines]) 
 {
     for (size_t i = 0; i < nlines; ++i) {
         if (fprintf(stream, "%s\n", lines[i]) < 0) {
@@ -489,8 +479,8 @@ IO_DEF bool io_write_lines(FILE *stream, size_t nlines,
     return true;
 }
 
-IO_DEF bool io_write_file(FILE *stream, size_t nbytes,
-    const char data[static nbytes])
+IO_DEF bool io_write_file(FILE *stream, size_t nbytes, 
+                          char data[static nbytes]) 
 {
     return fwrite(data, 1, nbytes, stream) == nbytes;
 }
@@ -551,7 +541,7 @@ int main(int argc, char **argv)
  
     /* This can be allocated dynamically on the heap too. */
     char chunk[IO_CHUNK_SIZE];
-    size_t chunk_size = -1;
+    size_t chunk_size = 0;
     
     while (chunk_size = io_read_next_chunk(fp, chunk)) {
         printf("Read a chunk of size: %zu.\n", chunk_size); 
@@ -577,5 +567,4 @@ int main(int argc, char **argv)
     
     return EXIT_SUCCESS;
 }
-
-#endif                          /* TEST_MAIN */
+#endif  /* TEST_MAIN */
