@@ -35,6 +35,8 @@
 #ifndef IO_DEF
     #ifdef IO_STATIC
         #define IO_DEF  static
+    #else
+        #define IO_DEF  extern
     #endif              /* IO_STATIC */
 #else
     #define IO_DEF  extern
